@@ -106,6 +106,7 @@ input {
     // warp-mouse-to-focus
     // focus-follows-mouse max-scroll-amount="0%"
     // workspace-auto-back-and-forth
+    // disable-mouse-warps
 
     // mod-key "Super"
     // mod-key-nested "Alt"
@@ -381,6 +382,19 @@ input {
     workspace-auto-back-and-forth
 }
 ```
+
+#### `disable-mouse-warps`
+
+<sup>Since: 25.??</sup>
+
+Disables moving the cursor to a different monitor when switching monitors.
+
+```kdl
+input {
+    disable-mouse-warps
+}
+```
+
 
 #### `mod-key`, `mod-key-nested`
 
