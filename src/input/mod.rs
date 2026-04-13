@@ -346,7 +346,7 @@ impl State {
         let (target_geo, keep_ratio, px, transform) = if let Some((rect, output)) = window_target {
             (
                 rect,
-                true,
+                false,
                 1. / output.current_scale().fractional_scale(),
                 output.current_transform(),
             )
@@ -354,7 +354,7 @@ impl State {
             let geo = self.niri.global_space.output_geometry(output).unwrap();
             (
                 geo.to_f64(),
-                true,
+                false,
                 1. / output.current_scale().fractional_scale(),
                 output.current_transform(),
             )
