@@ -240,7 +240,7 @@ impl CompositorHandler for State {
                         if new_focus == Some(&window) {
                             // We activated the newly opened window.
                             self.maybe_warp_cursor_to_focus();
-                            self.niri.layer_shell_on_demand_focus = None;
+                            self.niri.clear_layer_focus();
                         }
 
                         self.niri.queue_redraw(&output);

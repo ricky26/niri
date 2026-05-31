@@ -5,6 +5,7 @@ mod layer_shell;
 pub mod virtual_keyboard;
 mod xdg_shell;
 
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::os::fd::OwnedFd;
@@ -72,7 +73,7 @@ pub use crate::handlers::xdg_shell::KdeDecorationsModeState;
 use crate::input::click_grab::ClickGrab;
 use crate::layout::workspace::WorkspaceId;
 use crate::layout::{ActivateWindow, LayoutElement};
-use crate::niri::{DndIcon, NewClient, State};
+use crate::niri::{DndIcon, KeyboardFocus, NewClient, State};
 use crate::protocols::ext_workspace::{self, ExtWorkspaceHandler, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{
     self, ForeignToplevelHandler, ForeignToplevelManagerState,
@@ -82,6 +83,7 @@ use crate::protocols::mutter_x11_interop::MutterX11InteropHandler;
 use crate::protocols::output_management::{OutputManagementHandler, OutputManagementManagerState};
 use crate::protocols::screencopy::{Screencopy, ScreencopyHandler, ScreencopyManagerState};
 use crate::utils::{output_size, send_scale_transform};
+use crate::protocols::hyprland_focus_grab::{HyprlandFocusGrabHandler, HyprlandFocusGrabManagerState};
 
 pub const XDG_ACTIVATION_TOKEN_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -373,7 +375,7 @@ impl DndGrabHandler for State {
             if let Some((mapped, _)) = self.niri.layout.find_window_and_output(&root) {
                 let window = mapped.window.clone();
                 self.niri.layout.activate_window(&window);
-                self.niri.layer_shell_on_demand_focus = None;
+                self.niri.clear_layer_focus();
                 activate_output = false;
             }
         }
@@ -528,7 +530,7 @@ impl ForeignToplevelHandler for State {
         if let Some((mapped, _)) = self.niri.layout.find_window_and_output(&wl_surface) {
             let window = mapped.window.clone();
             self.niri.layout.activate_window(&window);
-            self.niri.layer_shell_on_demand_focus = None;
+            self.niri.clear_layer_focus();
             self.niri.queue_redraw_all();
         }
     }
@@ -793,7 +795,7 @@ impl XdgActivationHandler for State {
                     }
                     Some(niri_config::OnXdgActivate::Focus) => {
                         self.niri.layout.activate_window(&window);
-                        self.niri.layer_shell_on_demand_focus = None;
+                        self.niri.clear_layer_focus();
                         self.niri.queue_redraw_all();
                     }
                     None => {
@@ -802,7 +804,7 @@ impl XdgActivationHandler for State {
                             self.niri.queue_redraw_all();
                         } else {
                             self.niri.layout.activate_window(&window);
-                            self.niri.layer_shell_on_demand_focus = None;
+                            self.niri.clear_layer_focus();
                             self.niri.queue_redraw_all();
                         }
                     }
@@ -830,3 +832,19 @@ impl OutputManagementHandler for State {
 }
 
 impl MutterX11InteropHandler for State {}
+
+impl HyprlandFocusGrabHandler for State {
+    fn hyprland_focus_grab_manager_state(&mut self) -> &mut HyprlandFocusGrabManagerState {
+        &mut self.niri.hyprland_focus_grab_manager_state
+    }
+
+    fn ensure_focus(&mut self, surfaces: &HashSet<WlSurface>) {
+        if self.niri.keyboard_focus.surface().map_or(false, |s| surfaces.contains(s)) {
+            return;
+        }
+
+        let surface = surfaces.iter().next().unwrap().clone();
+        self.niri.keyboard_focus = KeyboardFocus::LayerShell { surface };
+    }
+}
+

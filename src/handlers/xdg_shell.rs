@@ -267,11 +267,11 @@ impl XdgShellHandler for State {
                 if intersection.intersects(ResizeEdge::LEFT_RIGHT) {
                     // FIXME: don't activate once we can pass specific windows to actions.
                     self.niri.layout.activate_window(&window);
-                    self.niri.layer_shell_on_demand_focus = None;
+                    self.niri.clear_layer_focus();
                     self.niri.layout.toggle_full_width();
                 }
                 if intersection.intersects(ResizeEdge::TOP_BOTTOM) {
-                    self.niri.layer_shell_on_demand_focus = None;
+                    self.niri.clear_layer_focus();
                     self.niri.layout.reset_window_height(Some(&window));
                 }
                 // FIXME: granular.
@@ -449,6 +449,10 @@ impl XdgShellHandler for State {
             trace!("ignoring popup grab because of current grab mismatch");
             grab.ungrab(PopupUngrabStrategy::All);
             return;
+        }
+
+        if let Some(grab) = self.niri.hyprland_focus_grab_manager_state.active_grab.take() {
+            grab.cleared();
         }
 
         trace!("new grab for root {:?}", root);

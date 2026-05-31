@@ -161,6 +161,7 @@ use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
 use crate::protocols::gamma_control::GammaControlManagerState;
 use crate::protocols::mutter_x11_interop::MutterX11InteropManagerState;
+use crate::protocols::hyprland_focus_grab::HyprlandFocusGrabManagerState;
 use crate::protocols::output_management::OutputManagementManagerState;
 use crate::protocols::screencopy::{Screencopy, ScreencopyBuffer, ScreencopyManagerState};
 use crate::render_helpers::blur::BlurOptions;
@@ -344,6 +345,7 @@ pub struct Niri {
     pub gamma_control_manager_state: GammaControlManagerState,
     pub activation_state: XdgActivationState,
     pub mutter_x11_interop_state: MutterX11InteropManagerState,
+    pub hyprland_focus_grab_manager_state: HyprlandFocusGrabManagerState,
 
     // This will not work as is outside of tests, so it is gated with #[cfg(test)] for now. In
     // particular, shaders will need to learn about the single pixel buffer. Also, it must be
@@ -1314,6 +1316,8 @@ impl State {
             KeyboardFocus::ScreenshotUi
         } else if self.niri.window_mru_ui.is_open() {
             KeyboardFocus::Mru
+        } else if let Some(surface) = &self.niri.hyprland_focus_grab_manager_state.focus {
+            KeyboardFocus::LayerShell { surface: surface.clone() }
         } else if let Some(output) = self.niri.layout.active_output() {
             let mon = self.niri.layout.monitor_for_output(output).unwrap();
             let layers = layer_map_for_output(output);
@@ -2650,6 +2654,9 @@ impl Niri {
         let mutter_x11_interop_state =
             MutterX11InteropManagerState::new::<State, _>(&display_handle, move |_| true);
 
+        let hyprland_focus_grab_manager_state =
+            HyprlandFocusGrabManagerState::new::<State, _>(&display_handle, move |_| true);
+
         #[cfg(test)]
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&display_handle);
 
@@ -2853,6 +2860,7 @@ impl Niri {
             gamma_control_manager_state,
             activation_state,
             mutter_x11_interop_state,
+            hyprland_focus_grab_manager_state,
             #[cfg(test)]
             single_pixel_buffer_state,
 
@@ -6880,13 +6888,23 @@ impl Niri {
         });
     }
 
+    pub fn clear_layer_focus(&mut self) {
+        if self.layer_shell_on_demand_focus.take().is_some()
+            || self.hyprland_focus_grab_manager_state.clear() {
+            // FIXME: granular.
+            self.queue_redraw_all();
+        }
+    }
+
     pub fn focus_layer_surface_if_on_demand(&mut self, surface: Option<LayerSurface>) {
         if let Some(surface) = surface {
             if surface.cached_state().keyboard_interactivity
                 == wlr_layer::KeyboardInteractivity::OnDemand
             {
                 if self.layer_shell_on_demand_focus.as_ref() != Some(&surface) {
-                    self.layer_shell_on_demand_focus = Some(surface);
+                    if !self.hyprland_focus_grab_manager_state.try_update_focus(surface.wl_surface()) {
+                        self.layer_shell_on_demand_focus = Some(surface);
+                    }
 
                     // FIXME: granular.
                     self.queue_redraw_all();
@@ -6896,13 +6914,7 @@ impl Niri {
             }
         }
 
-        // Something else got clicked, clear on-demand layer-shell focus.
-        if self.layer_shell_on_demand_focus.is_some() {
-            self.layer_shell_on_demand_focus = None;
-
-            // FIXME: granular.
-            self.queue_redraw_all();
-        }
+        self.clear_layer_focus();
     }
 
     /// Tries to find and return the root shell surface for a given surface.
@@ -7007,12 +7019,13 @@ impl Niri {
                 }
 
                 self.layout.activate_window_without_raising(window);
-                self.layer_shell_on_demand_focus = None;
+                self.clear_layer_focus();
             }
         }
 
         if let Some(layer) = &new_focus.layer {
-            if current_focus.layer.as_ref() != Some(layer) {
+            if current_focus.layer.as_ref() != Some(layer)
+                && !self.hyprland_focus_grab_manager_state.try_update_focus(layer.wl_surface()) {
                 self.layer_shell_on_demand_focus = Some(layer.clone());
             }
         }
