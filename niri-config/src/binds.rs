@@ -13,6 +13,7 @@ use smithay::input::keyboard::keysyms::KEY_NoSymbol;
 use smithay::input::keyboard::xkb::{keysym_from_name, KEYSYM_CASE_INSENSITIVE, KEYSYM_NO_FLAGS};
 use smithay::input::keyboard::Keysym;
 
+use crate::input::ModKey;
 use crate::recent_windows::{MruDirection, MruFilter, MruScope};
 use crate::utils::{expect_only_children, MergeWith};
 
@@ -39,6 +40,8 @@ pub struct Key {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Trigger {
     Keysym(Keysym),
+    CompositorMod,
+    Modifier(ModKey),
     MouseLeft,
     MouseRight,
     MouseMiddle,
@@ -55,6 +58,52 @@ pub enum Trigger {
     TabletStylusButton1,
     TabletStylusButton2,
     TabletStylusButton3,
+}
+
+/// Returns whether `keysym` is a modifier key like `Shift_L`.
+///
+/// This function matches what the niri config considers modifiers.
+/// So, it does not correspond exactly to `keysym.is_modifier_key()`.
+/// For example, unlike XKB, `Caps_Lock` and `ISO_Next_Group` aren't considered modifiers.
+pub fn is_keysym_modifier(keysym: Keysym) -> bool {
+    ModKey::from_keysym(keysym).is_some()
+}
+
+impl Trigger {
+    pub fn is_modifier(self) -> bool {
+        match self {
+            Self::CompositorMod | Self::Modifier(_) => true,
+            Self::Keysym(keysym) => is_keysym_modifier(keysym),
+            _ => false,
+        }
+    }
+
+    /// The modifier flags that this trigger sets, if it is a modifier key.
+    pub fn implied_modifier(self) -> Modifiers {
+        match self {
+            Self::CompositorMod => Modifiers::COMPOSITOR,
+            Self::Modifier(modifier) => modifier.to_modifiers(),
+            Self::Keysym(keysym) => ModKey::from_keysym(keysym)
+                .map_or(Modifiers::empty(), |modifier| modifier.to_modifiers()),
+            _ => Modifiers::empty(),
+        }
+    }
+
+    /// Whether the same key press can trigger both of these triggers.
+    fn overlaps(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::Modifier(modifier), Self::Keysym(keysym))
+            | (Self::Keysym(keysym), Self::Modifier(modifier)) => modifier.matches_keysym(keysym),
+            (a, b) => a == b,
+        }
+    }
+}
+
+impl Key {
+    /// Whether the two keys are different, but can still be triggered by the same key press.
+    fn conflicts_with(&self, other: &Self) -> bool {
+        *self != *other && self.modifiers == other.modifiers && self.trigger.overlaps(other.trigger)
+    }
 }
 
 bitflags! {
@@ -781,7 +830,7 @@ where
 
         let mut seen_keys: HashMap<Key, &knuffel::ast::SpannedNode<S>> = HashMap::new();
 
-        let mut binds = Vec::new();
+        let mut binds: Vec<Bind> = Vec::new();
 
         for child in node.children() {
             match Bind::decode_node(child, ctx) {
@@ -789,6 +838,29 @@ where
                     ctx.emit_error(e);
                 }
                 Ok(bind) => {
+                    // Two different keybinds can still be triggered by the same key press, since a
+                    // modifier key can be spelled as the modifier itself (`Alt`) or as its keysym
+                    // (`Alt_L`). One of them would always shadow the other, so report it rather
+                    // than leaving it up to the dispatch order.
+                    //
+                    // Exact duplicates are reported below instead.
+                    let conflict = binds
+                        .iter()
+                        .map(|bind| &bind.key)
+                        .find(|key| key.conflicts_with(&bind.key))
+                        .and_then(|key| seen_keys.get(key).copied());
+
+                    if let Some(first) = conflict {
+                        ctx.emit_error(DecodeError::missing(first, "keybind first defined here"));
+
+                        ctx.emit_error(DecodeError::unexpected(
+                            &child.node_name,
+                            "keybind",
+                            "conflicting keybind later defined here",
+                        ));
+                        continue;
+                    }
+
                     match seen_keys.entry(bind.key) {
                         Entry::Occupied(entry) => {
                             // Even though it's technically incorrect, we use
@@ -954,33 +1026,41 @@ impl FromStr for Key {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut modifiers = Modifiers::empty();
+        let mut seen_modifier_spellings: Vec<(Modifiers, &str)> = Vec::new();
 
         let mut split = s.split('+');
         let key = split.next_back().unwrap();
 
         for part in split {
             let part = part.trim();
-            if part.eq_ignore_ascii_case("mod") {
-                modifiers |= Modifiers::COMPOSITOR
+            let modifier = if part.eq_ignore_ascii_case("mod") {
+                Modifiers::COMPOSITOR
             } else if part.eq_ignore_ascii_case("ctrl") || part.eq_ignore_ascii_case("control") {
-                modifiers |= Modifiers::CTRL;
+                Modifiers::CTRL
             } else if part.eq_ignore_ascii_case("shift") {
-                modifiers |= Modifiers::SHIFT;
+                Modifiers::SHIFT
             } else if part.eq_ignore_ascii_case("alt") {
-                modifiers |= Modifiers::ALT;
+                Modifiers::ALT
             } else if part.eq_ignore_ascii_case("super") || part.eq_ignore_ascii_case("win") {
-                modifiers |= Modifiers::SUPER;
+                Modifiers::SUPER
             } else if part.eq_ignore_ascii_case("iso_level3_shift")
                 || part.eq_ignore_ascii_case("mod5")
             {
-                modifiers |= Modifiers::ISO_LEVEL3_SHIFT;
+                Modifiers::ISO_LEVEL3_SHIFT
             } else if part.eq_ignore_ascii_case("iso_level5_shift")
                 || part.eq_ignore_ascii_case("mod3")
             {
-                modifiers |= Modifiers::ISO_LEVEL5_SHIFT;
+                Modifiers::ISO_LEVEL5_SHIFT
             } else {
                 return Err(miette!("invalid modifier: {part}"));
+            };
+
+            if modifiers.contains(modifier) {
+                return Err(miette!("duplicate modifier: {part}"));
             }
+
+            modifiers |= modifier;
+            seen_modifier_spellings.push((modifier, part));
         }
 
         let trigger = if key.eq_ignore_ascii_case("MouseLeft") {
@@ -1015,6 +1095,20 @@ impl FromStr for Key {
             Trigger::TabletStylusButton2
         } else if key.eq_ignore_ascii_case("TabletStylusButton3") {
             Trigger::TabletStylusButton3
+        } else if key.eq_ignore_ascii_case("Mod") {
+            Trigger::CompositorMod
+        } else if key.eq_ignore_ascii_case("Ctrl") || key.eq_ignore_ascii_case("Control") {
+            Trigger::Modifier(ModKey::Ctrl)
+        } else if key.eq_ignore_ascii_case("Shift") {
+            Trigger::Modifier(ModKey::Shift)
+        } else if key.eq_ignore_ascii_case("Alt") {
+            Trigger::Modifier(ModKey::Alt)
+        } else if key.eq_ignore_ascii_case("Super") || key.eq_ignore_ascii_case("Win") {
+            Trigger::Modifier(ModKey::Super)
+        } else if key.eq_ignore_ascii_case("ISO_Level3_Shift") || key.eq_ignore_ascii_case("Mod5") {
+            Trigger::Modifier(ModKey::IsoLevel3Shift)
+        } else if key.eq_ignore_ascii_case("ISO_Level5_Shift") || key.eq_ignore_ascii_case("Mod3") {
+            Trigger::Modifier(ModKey::IsoLevel5Shift)
         } else {
             let mut keysym = keysym_from_name(key, KEYSYM_CASE_INSENSITIVE);
             // The keyboard event handling code can receive either
@@ -1049,6 +1143,19 @@ impl FromStr for Key {
             }
             Trigger::Keysym(keysym)
         };
+
+        // Reject binds whose trigger is a modifier key that
+        // overlaps with the held modifiers.
+        let implied = trigger.implied_modifier();
+        let overlap = modifiers & implied;
+        if let Some((_, spelling)) = seen_modifier_spellings
+            .iter()
+            .find(|(modifier, _)| overlap.contains(*modifier))
+        {
+            return Err(miette!(
+                "modifier `{spelling}` is implied by the `{key}` trigger"
+            ));
+        }
 
         Ok(Key { trigger, modifiers })
     }
@@ -1114,5 +1221,234 @@ mod tests {
                 modifiers: Modifiers::ISO_LEVEL5_SHIFT
             },
         );
+    }
+
+    #[test]
+    fn parse_bare_modifier_spellings() {
+        // Each modifier can be spelled with its canonical name or an alias. A bare modifier key
+        // parses to `Trigger::Modifier`.
+        for (text, modifier) in [
+            ("Ctrl", ModKey::Ctrl),
+            ("Control", ModKey::Ctrl),
+            ("Shift", ModKey::Shift),
+            ("Alt", ModKey::Alt),
+            ("Super", ModKey::Super),
+            ("Win", ModKey::Super),
+            ("Mod5", ModKey::IsoLevel3Shift),
+            ("ISO_Level3_Shift", ModKey::IsoLevel3Shift),
+            ("Mod3", ModKey::IsoLevel5Shift),
+            ("ISO_Level5_Shift", ModKey::IsoLevel5Shift),
+        ] {
+            assert_eq!(
+                text.parse::<Key>().unwrap(),
+                Key {
+                    trigger: Trigger::Modifier(modifier),
+                    modifiers: Modifiers::empty(),
+                },
+                "parsing `{text}`",
+            );
+        }
+    }
+
+    #[test]
+    fn parse_mod_as_trigger() {
+        // The mod key keeps its own trigger, which is resolved to a real modifier at runtime.
+        assert_eq!(
+            "Mod".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::CompositorMod,
+                modifiers: Modifiers::empty(),
+            },
+        );
+
+        // It can also be used together with other held modifiers.
+        assert_eq!(
+            "Ctrl+Mod".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::CompositorMod,
+                modifiers: Modifiers::CTRL,
+            },
+        );
+
+        // `Mod` also works as a held modifier of another trigger.
+        assert_eq!(
+            "Mod+Control_L".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::Keysym(Keysym::Control_L),
+                modifiers: Modifiers::COMPOSITOR,
+            },
+        );
+    }
+
+    #[test]
+    fn parse_multi_modifier_triggers() {
+        // A modifier key as the trigger with another held modifier, either spelled as the modifier
+        // itself or as its keysym.
+        assert_eq!(
+            "Ctrl+Alt".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::Modifier(ModKey::Alt),
+                modifiers: Modifiers::CTRL,
+            },
+        );
+        assert_eq!(
+            "Ctrl+Alt_L".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::Keysym(Keysym::Alt_L),
+                modifiers: Modifiers::CTRL,
+            },
+        );
+    }
+
+    #[test]
+    fn parse_rejects_modifier_implied_by_trigger() {
+        // A trigger that is itself a modifier key already sets that modifier, so requiring it again
+        // can never match: reject such a bind rather than leaving one that silently does nothing.
+        for text in [
+            "Alt+Alt_L",
+            "Alt+Alt_R",
+            "Alt+Alt",
+            "Ctrl+Ctrl",
+            "Ctrl+Control_L",
+            "Ctrl+Shift+Control_L",
+            "Shift+Shift_R",
+            "Super+Super_L",
+            "Mod5+ISO_Level3_Shift",
+            "Mod+Mod",
+        ] {
+            let err = text.parse::<Key>().unwrap_err();
+            assert!(
+                format!("{err}").contains("is implied by the `"),
+                "parsing `{text}`: {err}"
+            );
+        }
+
+        // The error names both the modifier and the trigger.
+        let err = "Alt+Alt_L".parse::<Key>().unwrap_err();
+        assert_eq!(
+            format!("{err}"),
+            "modifier `Alt` is implied by the `Alt_L` trigger"
+        );
+
+        // Only the modifier that overlaps is reported, not the first one written: `Ctrl` is not
+        // implied by the `Alt_L` trigger, so `Alt+Alt_L` is still the one that gets named.
+        let err = "Ctrl+Alt+Alt_L".parse::<Key>().unwrap_err();
+        assert_eq!(
+            format!("{err}"),
+            "modifier `Alt` is implied by the `Alt_L` trigger"
+        );
+
+        // `Mod+Mod` is rejected as an implied modifier.
+        let err = "Mod+Mod".parse::<Key>().unwrap_err();
+        assert_eq!(
+            format!("{err}"),
+            "modifier `Mod` is implied by the `Mod` trigger"
+        );
+
+        // Other modifiers on a modifier trigger are fine, since the trigger doesn't imply them.
+        assert_eq!(
+            "Ctrl+Alt_L".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::Keysym(Keysym::Alt_L),
+                modifiers: Modifiers::CTRL,
+            },
+        );
+        assert_eq!(
+            "Shift+Control_L".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::Keysym(Keysym::Control_L),
+                modifiers: Modifiers::SHIFT,
+            },
+        );
+        assert_eq!(
+            "Mod+Alt_L".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::Keysym(Keysym::Alt_L),
+                modifiers: Modifiers::COMPOSITOR,
+            },
+        );
+        // `Mod` is only resolved at runtime, so no trigger implies it.
+        assert_eq!(
+            "Alt+Mod".parse::<Key>().unwrap(),
+            Key {
+                trigger: Trigger::CompositorMod,
+                modifiers: Modifiers::ALT,
+            },
+        );
+    }
+
+    #[test]
+    fn parse_rejects_repeated_modifiers() {
+        // Setting a modifier twice is a mistake, and the flags would silently collapse it. The same
+        // modifier can be spelled differently, so this compares the flags rather than the text.
+        for text in [
+            "Alt+Alt+Q",
+            "Ctrl+Control+Q",
+            "Super+Win+Q",
+            "Mod5+ISO_Level3_Shift+Q",
+            "Mod+Mod+Q",
+        ] {
+            let err = text.parse::<Key>().unwrap_err();
+            assert!(
+                format!("{err}").contains("duplicate modifier"),
+                "parsing `{text}`: {err}"
+            );
+        }
+
+        // The error names the modifier, spelled the way it was written.
+        let err = "Alt+Alt+Q".parse::<Key>().unwrap_err();
+        assert_eq!(format!("{err}"), "duplicate modifier: Alt");
+    }
+
+    #[test]
+    fn key_conflicts() {
+        let key = |trigger, modifiers| Key { trigger, modifiers };
+
+        // A modifier key is triggered by either of its key's keysyms, so these two spellings are
+        // the same key press.
+        let alt = key(Trigger::Modifier(ModKey::Alt), Modifiers::CTRL);
+        let alt_l = key(Trigger::Keysym(Keysym::Alt_L), Modifiers::CTRL);
+        assert!(alt.conflicts_with(&alt_l));
+        assert!(alt.conflicts_with(&key(Trigger::Keysym(Keysym::Alt_R), Modifiers::CTRL)));
+        // Symmetric.
+        assert!(alt_l.conflicts_with(&alt));
+
+        // Single-keysym modifiers work the same way: `Mod5` is `ISO_Level3_Shift`.
+        let mod5 = key(
+            Trigger::Modifier(ModKey::IsoLevel3Shift),
+            Modifiers::empty(),
+        );
+        let iso_level3_shift = key(
+            Trigger::Keysym(Keysym::ISO_Level3_Shift),
+            Modifiers::empty(),
+        );
+        assert!(mod5.conflicts_with(&iso_level3_shift));
+
+        // Different modifiers are different key presses.
+        let bare_alt_l = key(Trigger::Keysym(Keysym::Alt_L), Modifiers::empty());
+        assert!(!alt.conflicts_with(&bare_alt_l));
+        assert!(!alt.conflicts_with(&key(Trigger::Modifier(ModKey::Ctrl), Modifiers::CTRL)));
+
+        // The left and right keysyms are different keys.
+        assert!(
+            !bare_alt_l.conflicts_with(&key(Trigger::Keysym(Keysym::Alt_R), Modifiers::empty()))
+        );
+
+        // Non-modifier keys don't overlap with anything else.
+        let q = key(Trigger::Keysym(Keysym::q), Modifiers::empty());
+        assert!(!q.conflicts_with(&key(Trigger::Keysym(Keysym::l), Modifiers::empty())));
+        assert!(!q.conflicts_with(&alt));
+
+        // Identical keys are duplicates, reported separately.
+        assert!(!q.conflicts_with(&q));
+        assert!(!alt.conflicts_with(&alt));
+
+        // The compositor mod key is only resolved at dispatch, so `Mod` isn't compared against the
+        // mod key's own spellings.
+        let compositor_mod = key(Trigger::CompositorMod, Modifiers::empty());
+        let super_l = key(Trigger::Keysym(Keysym::Super_L), Modifiers::empty());
+        let super_modifier = key(Trigger::Modifier(ModKey::Super), Modifiers::empty());
+        assert!(!compositor_mod.conflicts_with(&super_l));
+        assert!(!compositor_mod.conflicts_with(&super_modifier));
     }
 }
