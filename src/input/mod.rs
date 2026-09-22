@@ -808,6 +808,12 @@ impl State {
                 .drain()
                 .map(|(_, bind)| bind),
         );
+        binds.extend(
+            self.niri
+                .pending_mouse_release_binds
+                .drain()
+                .map(|(_, bind)| bind),
+        );
 
         // Forget the rest of the input state: the releases will never arrive.
         self.niri.clear_input_state();
@@ -2955,6 +2961,14 @@ impl State {
         let modifiers = modifiers_from_state(mods);
         let mod_down = modifiers.contains(mod_key.to_modifiers());
 
+        if ButtonState::Released == button_state {
+            if let Some(bind) = self.niri.pending_mouse_release_binds.remove(&button_code) {
+                self.niri.suppressed_buttons.remove(&button_code);
+                self.handle_bind(bind, false);
+                return;
+            }
+        }
+
         if self.niri.suppressed_buttons.remove(&button_code) {
             return;
         }
@@ -2996,6 +3010,15 @@ impl State {
                 .and_then(|trigger| self.find_pointer_bind(mod_key, trigger, mods))
                 {
                     self.niri.suppressed_buttons.insert(button_code);
+                    if should_record_release_bind(
+                        &bind,
+                        self.niri.is_locked(),
+                        &self.niri.bind_cooldown_timers,
+                    ) {
+                        self.niri
+                            .pending_mouse_release_binds
+                            .insert(button_code, bind.clone());
+                    }
                     if bind.has_press() {
                         self.handle_bind(bind.clone(), true);
                     }
@@ -4644,6 +4667,7 @@ impl State {
 impl Niri {
     fn cancel_interrupted_release_binds(&mut self) {
         retain_press_binds(&mut self.pending_release_binds);
+        retain_press_binds(&mut self.pending_mouse_release_binds);
     }
 }
 
