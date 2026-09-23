@@ -78,6 +78,9 @@ fn run_f(f: &mut Fixture, id: ClientId, surface: &WlSurface, input: &str) -> Str
     });
 
     let mut rv = String::new();
+    for event in f.client(id).state.recent_keyboard_events(surface) {
+        let _ = writeln!(&mut rv, "    surface {event}");
+    }
 
     for op in ops {
         let (code, key_state) = match op {
