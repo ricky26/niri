@@ -681,10 +681,10 @@ impl State {
         match result {
             ShouldInterceptResult::ForwardAndHandle(bind)
             | ShouldInterceptResult::InterceptAndHandle(bind) => {
-                self.handle_bind(bind.clone(), pressed);
-                if pressed {
-                    self.start_key_repeat(bind);
+                if pressed && bind.repeat {
+                    self.start_key_repeat(bind.clone());
                 }
+                self.handle_bind(bind, pressed);
             }
             ShouldInterceptResult::Forward | ShouldInterceptResult::InterceptOnly => {}
         }
@@ -747,15 +747,6 @@ impl State {
     }
 
     pub fn handle_bind(&mut self, bind: Bind, pressed: bool) {
-        let action = if pressed {
-            bind.press_action()
-        } else {
-            bind.release_action()
-        };
-        let Some(action) = action.cloned() else {
-            return;
-        };
-
         let allowed_when_locked = bind_allowed_when_locked(&bind, pressed);
         let allowed_during_screenshot = bind_allowed_during_screenshot(&bind, pressed);
 
@@ -795,6 +786,10 @@ impl State {
                 }
             }
         }
+
+        let Some(action) = bind.into_action(pressed) else {
+            return;
+        };
 
         self.do_action(action, allowed_when_locked);
     }

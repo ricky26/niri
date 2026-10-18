@@ -68,6 +68,17 @@ impl Bind {
             BoundAction::Press(_) => None,
         }
     }
+
+    pub fn into_action(self, pressed: bool) -> Option<Action> {
+        match (self.action, pressed) {
+            (BoundAction::Press(action), true) | (BoundAction::Release(action), false) => {
+                Some(action)
+            }
+            (BoundAction::Both { press, .. }, true) => Some(press),
+            (BoundAction::Both { release, .. }, false) => Some(release),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
