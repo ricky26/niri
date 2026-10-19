@@ -693,63 +693,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_bind_repeat_on_modifier_only() {
-        // A bare modifier and a modifier keysym are both modifier-only triggers.
-        for trigger in ["Mod", "Super_L", "Alt_L", "Ctrl"] {
-            assert_parse_error(
-                &format!(
-                    r#"
-                    binds {{
-                        {trigger} repeat=true {{ close-window; }}
-                    }}
-                    "#
-                ),
-                "modifier-only binds cannot repeat",
-            );
-        }
-
-        // The check follows the press action, so it applies to binds with both actions too.
-        assert_parse_error(
-            r#"
-            binds {
-                Mod repeat=true {
-                    press { close-window; }
-                    release { center-column; }
-                }
-            }
-            "#,
-            "modifier-only binds cannot repeat",
-        );
-
-        // An explicit repeat=false is fine, and so is a regular bind with a press action.
-        do_parse(
-            r#"
-            binds {
-                Mod repeat=false { close-window; }
-                Mod+T repeat=true { spawn "alacritty"; }
-            }
-            "#,
-        );
-
-        // Modifier-only binds don't repeat by default, since the key never auto-repeats, while a
-        // regular press bind still does.
-        let config = do_parse(
-            r#"
-            binds {
-                Mod { close-window; }
-                Super_L { close-window; }
-                Alt+Super_L { close-window; }
-                Mod+T { spawn "alacritty"; }
-            }
-            "#,
-        );
-        assert!(!config.binds.0[0].repeat);
-        assert!(!config.binds.0[1].repeat);
-        assert!(!config.binds.0[2].repeat);
-        assert!(config.binds.0[3].repeat);
-    }
-
-    #[test]
     fn parse_bind_repeat_on_release_only() {
         // A release-only bind has no press action to repeat, so repeat=true is rejected.
         assert_parse_error(

@@ -117,6 +117,10 @@ binds {
         press { spawn "notify-send" "Pressed"; }
         release { spawn "notify-send" "Released"; }
     }
+
+    // Specific left or right modifier keys like Alt_L or Alt_R can be used as trigger keys, but not as modifiers.
+    Ctrl+Alt_L { spawn "notify-send" "Pressed"; } // valid
+    // Alt_L+Ctrl { spawn "notify-send" "Pressed"; } // invalid
 }
 ```
 
@@ -145,9 +149,6 @@ Modifiers usually participate in other bindings, so a press binding would trigge
 
 In bindings with both press and release, the release action is guaranteed to trigger if the press action triggers.
 So, your push-to-talk press-release binding will never get stuck pressed, no matter how you release the keys.
-
-A modifier-only bind never repeats, so holding `Mod` runs its press action exactly once.
-For this reason, `repeat=true` on a modifier-only bind is an error.
 
 For a bind with both press and release actions, the cooldown doesn't affect its release action: once the press action ran, the release action runs when the key is released, even if the cooldown hasn't expired by then.
 A press that the cooldown skipped skips its release action too, as described above.

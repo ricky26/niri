@@ -1132,16 +1132,8 @@ where
             release_action = None;
         }
 
-        let modifier_only = key.trigger.is_modifier();
-
         if let Some(node) = repeat_node {
-            if repeat == Some(true) && modifier_only && press_action.is_some() {
-                ctx.emit_error(DecodeError::unexpected(
-                    node,
-                    "property",
-                    "modifier-only binds cannot repeat",
-                ));
-            } else if repeat == Some(true) && press_action.is_none() && release_action.is_some() {
+            if repeat == Some(true) && press_action.is_none() && release_action.is_some() {
                 ctx.emit_error(DecodeError::unexpected(
                     node,
                     "property",
@@ -1172,7 +1164,7 @@ where
 
         let repeat = match repeat {
             Some(value) => value,
-            None => release_action.is_none() && !modifier_only,
+            None => release_action.is_none(),
         };
 
         let action = match (press_action, release_action) {
