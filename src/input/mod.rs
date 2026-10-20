@@ -4940,45 +4940,34 @@ fn bind_matches_trigger(bind: &Bind, trigger: Trigger, mod_key: ModKey, mods: Mo
         return false;
     }
 
-    let mut modifiers = mods;
+    let mut held_modifiers = mods;
+    let mut required_modifiers = bind.key.modifiers;
 
-    // Check if the trigger is a modifier key (like Mod, Alt, Alt_L, Control_L, Shift_L, etc.)
-    // If so, we need to remove its modifier from the current modifiers since the key is the
-    // trigger, not a modifier.
-    let trigger_is_modifier = trigger.is_modifier();
-
-    // Check if the trigger is the mod key itself, either bound as `Mod`, as its own keysym (like
-    // `Super_L` when the mod key is Super), or as the modifier itself (like `Super` when the mod
-    // key is Super). In this case its modifier is part of the trigger, not a held modifier.
+    // Check if the trigger is the mod key itself, either as `Mod`, as its own keysym (like
+    // `Super_L`), or as the modifier itself (like `Super`). If so, normalize the modifiers not
+    // to need it.
     let trigger_is_mod_key = match trigger {
         Trigger::CompositorMod => true,
         Trigger::Modifier(modifier) => modifier == mod_key,
-        Trigger::Keysym(keysym) => trigger_is_modifier && mod_key.matches_keysym(keysym),
+        Trigger::Keysym(keysym) => is_keysym_modifier(keysym) && mod_key.matches_keysym(keysym),
         _ => false,
     };
 
     if trigger_is_mod_key {
-        modifiers.remove(mod_key.to_modifiers());
+        held_modifiers.remove(mod_key.to_modifiers());
+        required_modifiers.remove(trigger.implied_modifier());
     } else {
-        if trigger_is_modifier {
-            modifiers.remove(trigger.implied_modifier());
+        if held_modifiers.contains(mod_key.to_modifiers()) {
+            held_modifiers |= Modifiers::COMPOSITOR;
         }
-        let mod_down = mods.contains(mod_key.to_modifiers());
-        if mod_down {
-            modifiers |= Modifiers::COMPOSITOR;
-        }
-    }
-
-    let mut bind_modifiers = bind.key.modifiers;
-    if !trigger_is_mod_key {
-        if bind_modifiers.contains(Modifiers::COMPOSITOR) {
-            bind_modifiers |= mod_key.to_modifiers();
-        } else if bind_modifiers.contains(mod_key.to_modifiers()) {
-            bind_modifiers |= Modifiers::COMPOSITOR;
+        if required_modifiers.contains(Modifiers::COMPOSITOR) {
+            required_modifiers |= mod_key.to_modifiers();
+        } else if required_modifiers.contains(mod_key.to_modifiers()) {
+            required_modifiers |= Modifiers::COMPOSITOR;
         }
     }
 
-    bind_modifiers == modifiers
+    required_modifiers == held_modifiers
 }
 
 fn find_configured_switch_action(

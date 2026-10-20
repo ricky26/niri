@@ -1661,3 +1661,18 @@ fn scroll_cancels_release_only_key_bind() {
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
 }
+
+#[test]
+fn redundant_modifier_binds() {
+    // Binds should behave identically with or without redundant modifiers.
+    let input = "+LCTL +LALT -LALT -LCTL";
+    assert_eq!(
+        run("binds { Alt_L { release { close-window; }; }; }", input),
+        run("binds { Alt+Alt_L { release { close-window; }; }; }", input)
+    );
+
+    assert_eq!(
+        run("binds { Alt+Q { release { close-window; }; }; }", input),
+        run("binds { Alt+Alt+Q { release { close-window; }; }; }", input)
+    );
+}

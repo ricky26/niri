@@ -522,7 +522,10 @@ fn action_name(action: &Action) -> String {
 fn key_name(screen_reader: bool, mod_key: ModKey, key: &Key) -> String {
     let mut name = String::new();
 
-    let has_comp_mod = key.modifiers.contains(Modifiers::COMPOSITOR);
+    // Do not show modifiers implied by the trigger.
+    let modifiers = key.modifiers & !key.trigger.implied_modifier();
+
+    let has_comp_mod = modifiers.contains(Modifiers::COMPOSITOR);
 
     let mod_key_pretty = modifier_name(mod_key);
 
@@ -532,24 +535,24 @@ fn key_name(screen_reader: bool, mod_key: ModKey, key: &Key) -> String {
         name.push_str(" + ");
     }
 
-    if key.modifiers.contains(Modifiers::SUPER) && !(has_comp_mod && mod_key == ModKey::Super) {
+    if modifiers.contains(Modifiers::SUPER) && !(has_comp_mod && mod_key == ModKey::Super) {
         name.push_str("Super + ");
     }
-    if key.modifiers.contains(Modifiers::CTRL) && !(has_comp_mod && mod_key == ModKey::Ctrl) {
+    if modifiers.contains(Modifiers::CTRL) && !(has_comp_mod && mod_key == ModKey::Ctrl) {
         name.push_str("Ctrl + ");
     }
-    if key.modifiers.contains(Modifiers::SHIFT) && !(has_comp_mod && mod_key == ModKey::Shift) {
+    if modifiers.contains(Modifiers::SHIFT) && !(has_comp_mod && mod_key == ModKey::Shift) {
         name.push_str("Shift + ");
     }
-    if key.modifiers.contains(Modifiers::ALT) && !(has_comp_mod && mod_key == ModKey::Alt) {
+    if modifiers.contains(Modifiers::ALT) && !(has_comp_mod && mod_key == ModKey::Alt) {
         name.push_str("Alt + ");
     }
-    if key.modifiers.contains(Modifiers::ISO_LEVEL3_SHIFT)
+    if modifiers.contains(Modifiers::ISO_LEVEL3_SHIFT)
         && !(has_comp_mod && mod_key == ModKey::IsoLevel3Shift)
     {
         name.push_str("Mod5 + ");
     }
-    if key.modifiers.contains(Modifiers::ISO_LEVEL5_SHIFT)
+    if modifiers.contains(Modifiers::ISO_LEVEL5_SHIFT)
         && !(has_comp_mod && mod_key == ModKey::IsoLevel5Shift)
     {
         name.push_str("Mod3 + ");

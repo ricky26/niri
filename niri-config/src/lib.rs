@@ -919,8 +919,11 @@ mod tests {
             ]
         );
 
-        // Ctrl+Alt_L spells out the trigger keysym with Ctrl as a held modifier.
-        assert_eq!(config.binds.0[7].key.modifiers, Modifiers::CTRL);
+        // Ctrl+Alt_L has modifiers of Ctrl (manually specified) and Alt (implied by the keysym).
+        assert_eq!(
+            config.binds.0[7].key.modifiers,
+            Modifiers::CTRL | Modifiers::ALT
+        );
     }
 
     #[test]
@@ -967,6 +970,86 @@ mod tests {
             "#,
         );
         assert!(config.binds.0[0].key.trigger.is_modifier());
+    }
+
+    #[test]
+    fn parse_recent_windows_bind_modifier() {
+        // Modifier-only binds are allowed.
+        do_parse(
+            r#"
+            recent-windows {
+                binds {
+                    Alt_L { next-window; }
+                }
+            }
+            "#,
+        );
+        // Redundant modifiers are allowed.
+        do_parse(
+            r#"
+            recent-windows {
+                binds {
+                    Alt+Alt_L { next-window; }
+                }
+            }
+            "#,
+        );
+
+        // A trigger with no modifier at all is still rejected.
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Tab { next-window; }
+                }
+            }
+            "#,
+            "keybind must have a modifier key",
+        );
+
+        // Only keyboard keys are supported here for now, so a bare modifier trigger is rejected.
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Mod { next-window; }
+                }
+            }
+            "#,
+            "key must be a keyboard key",
+        );
+    }
+
+    #[test]
+    fn parse_bind_redundant_modifiers_are_the_same_bind() {
+        // Redundant modifiers are normalized, so these should error as duplicates.
+        assert_parse_error(
+            r#"
+            binds {
+                Alt_L { close-window; }
+                Alt+Alt_L { center-column; }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
+        assert_parse_error(
+            r#"
+            binds {
+                Alt { close-window; }
+                Alt+Alt { center-column; }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
+        assert_parse_error(
+            r#"
+            binds {
+                Mod { close-window; }
+                Mod+Mod { center-column; }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
     }
 
     #[test]
@@ -2627,7 +2710,7 @@ mod tests {
                         key: Key {
                             trigger: CompositorMod,
                             modifiers: Modifiers(
-                                0x0,
+                                COMPOSITOR,
                             ),
                         },
                         action: Release(
@@ -2643,7 +2726,7 @@ mod tests {
                         key: Key {
                             trigger: CompositorMod,
                             modifiers: Modifiers(
-                                SHIFT,
+                                SHIFT | COMPOSITOR,
                             ),
                         },
                         action: Release(

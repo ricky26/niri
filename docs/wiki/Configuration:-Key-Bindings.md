@@ -140,9 +140,8 @@ Likewise, a `Mod+O { release { ...; }; }` bind will not trigger if you press ano
 Any other input cancels a pending release-only bind the same way: a mouse button press, a scroll, a touch, stylus input, or a touchpad gesture.
 This makes it safe to bind keys and modifiers on their own, since using them in other shortcuts will not trigger them.
 
-Modifier keys and their keysyms are the same key: `Alt` triggers on `Alt_L` and `Alt_R` too, so binding both `Alt` and `Alt_L` is an error—one of them would always shadow the other.
-Similarly, binds cannot have a trigger key that implies one of its modifiers, such as `Alt+Alt_L`.
-`Alt_L` and `Alt_R` are different keys, though, so those can be bound separately.
+Modifier keys and their keysyms are the same key: `Alt` triggers on `Alt_L` and `Alt_R` too, so binding both `Alt` and `Alt_L` is an error because one of them would always shadow the other.
+Writing `Alt_L` and `Alt+Alt_L` are equivalent since `Alt_L` implies `Alt`, although the latter will log a warning.
 
 Release bindings are useful when you want to bind a modifier key to an action.
 Modifiers usually participate in other bindings, so a press binding would trigger every time you try to input another binding.
