@@ -4949,7 +4949,7 @@ fn bind_matches_trigger(bind: &Bind, trigger: Trigger, mod_key: ModKey, mods: Mo
     let trigger_is_mod_key = match trigger {
         Trigger::CompositorMod => true,
         Trigger::Modifier(modifier) => modifier == mod_key,
-        Trigger::Keysym(keysym) => is_keysym_modifier(keysym) && mod_key.matches_keysym(keysym),
+        Trigger::Keysym(keysym) => mod_key.matches_keysym(keysym),
         _ => false,
     };
 
