@@ -1665,12 +1665,13 @@ fn scroll_cancels_release_only_key_bind() {
 #[test]
 fn redundant_modifier_binds() {
     // Binds should behave identically with or without redundant modifiers.
-    let input = "+LCTL +LALT -LALT -LCTL";
+    let input = "+LALT -LALT";
     assert_eq!(
         run("binds { Alt_L { release { close-window; }; }; }", input),
         run("binds { Alt+Alt_L { release { close-window; }; }; }", input)
     );
 
+    let input = "+LALT +LatQ -LatQ -LALT";
     assert_eq!(
         run("binds { Alt+Q { release { close-window; }; }; }", input),
         run("binds { Alt+Alt+Q { release { close-window; }; }; }", input)
