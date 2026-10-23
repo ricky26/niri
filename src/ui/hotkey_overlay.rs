@@ -303,15 +303,15 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
 
     // Add the spawn actions.
     for action in binds.iter().filter_map(|bind| {
-        let trigger = bind.key.trigger;
+        // Includes the trigger's implied modifier.
+        let modifiers = bind.key.modifiers;
 
         // Only show binds with Mod or Super to filter out stuff like volume up/down.
-        // A bind on a modifier key itself needs no held modifiers.
-        if (trigger.is_modifier()
-                || bind.key.modifiers.contains(Modifiers::COMPOSITOR)
-                || bind.key.modifiers.contains(Modifiers::SUPER))
-            // Also filter out wheel and touchpad scroll binds.
-            && (trigger.is_modifier() || matches!(trigger, Trigger::Keysym(_)))
+        // Also filter out wheel and touchpad scroll binds.
+        if matches!(
+            bind.key.trigger,
+            Trigger::Keysym(_) | Trigger::Modifier(_) | Trigger::CompositorMod
+        ) && modifiers.intersects(Modifiers::COMPOSITOR | Modifiers::SUPER)
         {
             bind_actions(bind)
                 .find(|action| matches!(action, Action::Spawn(_) | Action::SpawnSh(_)))
@@ -854,7 +854,7 @@ mod tests {
     }
 
     #[test]
-    fn test_collect_actions_release_binds() {
+    fn test_collect_actions() {
         // Release binds count as bound, both for the actions that are always listed and for the
         // ones that are only listed when bound.
         let config = Config::parse_mem(
@@ -897,5 +897,35 @@ mod tests {
         .unwrap();
 
         assert!(collect_actions(&config).contains(&&Action::CenterColumn));
+
+        // Various filtering behavior.
+        let config = Config::parse_mem(
+            r#"binds {
+                XF86AudioMute { spawn "Mute"; }
+                Super_L { spawn "Super_L"; }
+                Mod { spawn "Mod"; }
+                Shift_L { spawn "Shift_L"; }
+                Alt { spawn "Alt"; }
+                Mod+Shift_L { spawn "Mod+Shift_L"; }
+                Super+Ctrl { spawn "Super+Ctrl"; }
+                Mod+Alt { spawn "Mod+Alt"; }
+            }"#,
+        )
+        .unwrap();
+
+        let mut snapshot = String::new();
+        for action in collect_actions(&config) {
+            if let Action::Spawn(args) = action {
+                snapshot.push_str(&args[0]);
+                snapshot.push('\n');
+            }
+        }
+        assert_snapshot!(snapshot, @"
+        Super_L
+        Mod
+        Mod+Shift_L
+        Super+Ctrl
+        Mod+Alt
+        ");
     }
 }
