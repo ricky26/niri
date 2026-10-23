@@ -152,9 +152,9 @@ impl HotkeyOverlay {
     }
 }
 
-/// Returns the action that a bind triggers in the hotkey overlay, preferring its press action.
-fn bind_action(bind: &Bind) -> Option<&Action> {
-    bind.press_action().or_else(|| bind.release_action())
+/// Returns the actions that a bind triggers.
+fn bind_actions(bind: &Bind) -> impl Iterator<Item = &Action> {
+    bind.press_action().into_iter().chain(bind.release_action())
 }
 
 /// Whether the bind triggers the action, on press or on release.
@@ -237,33 +237,33 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
     ]);
 
     // Prefer move-column-to-workspace-down, but fall back to move-window-to-workspace-down.
-    if let Some(bind) = binds.iter().find(|bind| {
-        matches!(
-            bind_action(bind),
-            Some(Action::MoveColumnToWorkspaceDown(_))
-        )
-    }) {
-        actions.push(bind_action(bind).unwrap());
-    } else if binds.iter().any(|bind| {
-        matches!(
-            bind_action(bind),
-            Some(Action::MoveWindowToWorkspaceDown(_))
-        )
-    }) {
+    if let Some(action) = binds
+        .iter()
+        .flat_map(bind_actions)
+        .find(|action| matches!(action, Action::MoveColumnToWorkspaceDown(_)))
+    {
+        actions.push(action);
+    } else if binds
+        .iter()
+        .flat_map(bind_actions)
+        .any(|action| matches!(action, Action::MoveWindowToWorkspaceDown(_)))
+    {
         actions.push(&Action::MoveWindowToWorkspaceDown(true));
     } else {
         actions.push(&Action::MoveColumnToWorkspaceDown(true));
     }
 
     // Same for -up.
-    if let Some(bind) = binds
+    if let Some(action) = binds
         .iter()
-        .find(|bind| matches!(bind_action(bind), Some(Action::MoveColumnToWorkspaceUp(_))))
+        .flat_map(bind_actions)
+        .find(|action| matches!(action, Action::MoveColumnToWorkspaceUp(_)))
     {
-        actions.push(bind_action(bind).unwrap());
+        actions.push(action);
     } else if binds
         .iter()
-        .any(|bind| matches!(bind_action(bind), Some(Action::MoveWindowToWorkspaceUp(_))))
+        .flat_map(bind_actions)
+        .any(|action| matches!(action, Action::MoveWindowToWorkspaceUp(_)))
     {
         actions.push(&Action::MoveWindowToWorkspaceUp(true));
     } else {
@@ -281,18 +281,19 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
     ]);
 
     // Screenshot is not as important, can omit if not bound.
-    if let Some(bind) = binds
+    if let Some(action) = binds
         .iter()
-        .find(|bind| matches!(bind_action(bind), Some(Action::Screenshot(_, _))))
+        .flat_map(bind_actions)
+        .find(|action| matches!(action, Action::Screenshot(_, _)))
     {
-        actions.push(bind_action(bind).unwrap());
+        actions.push(action);
     }
 
     // Add actions with a custom hotkey-overlay-title.
     for bind in binds {
         if matches!(bind.hotkey_overlay_title, Some(Some(_))) {
             // Avoid duplicate actions.
-            if let Some(action) = bind_action(bind) {
+            if let Some(action) = bind_actions(bind).next() {
                 if !actions.contains(&action) {
                     actions.push(action);
                 }
@@ -301,20 +302,23 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
     }
 
     // Add the spawn actions.
-    for bind in binds.iter().filter(|bind| {
+    for action in binds.iter().filter_map(|bind| {
         let trigger = bind.key.trigger;
 
-        matches!(bind_action(bind), Some(Action::Spawn(_)) | Some(Action::SpawnSh(_)))
-            // Only show binds with Mod or Super to filter out stuff like volume up/down.
-            // A bind on a modifier key itself needs no held modifiers.
-            && (trigger.is_modifier()
+        // Only show binds with Mod or Super to filter out stuff like volume up/down.
+        // A bind on a modifier key itself needs no held modifiers.
+        if (trigger.is_modifier()
                 || bind.key.modifiers.contains(Modifiers::COMPOSITOR)
                 || bind.key.modifiers.contains(Modifiers::SUPER))
             // Also filter out wheel and touchpad scroll binds.
             && (trigger.is_modifier() || matches!(trigger, Trigger::Keysym(_)))
+        {
+            bind_actions(bind)
+                .find(|action| matches!(action, Action::Spawn(_) | Action::SpawnSh(_)))
+        } else {
+            None
+        }
     }) {
-        let action = bind_action(bind).unwrap();
-
         // We only show one bind for each action, so we need to deduplicate the Spawn actions.
         if !actions.contains(&action) {
             actions.push(action);
