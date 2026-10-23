@@ -1205,6 +1205,10 @@ impl FromStr for Key {
     type Err = miette::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.contains('\0') {
+            return Err(miette!("invalid key with a null byte: {s:?}"));
+        }
+
         let mut written_modifiers: Vec<(Modifiers, &str)> = Vec::new();
 
         let mut split = s.split('+');
@@ -1550,5 +1554,11 @@ mod tests {
         let compositor_mod = key("Mod");
         assert!(!compositor_mod.conflicts_with(&key("Super_L")));
         assert!(!compositor_mod.conflicts_with(&key("Super")));
+    }
+
+    #[test]
+    fn null_byte() {
+        // Shouldn't panic.
+        let _ = "W\0".parse::<Key>();
     }
 }
