@@ -148,6 +148,13 @@ impl Trigger {
             (a, b) => a == b,
         }
     }
+
+    pub fn is_keyboard(self) -> bool {
+        matches!(
+            self,
+            Trigger::Keysym(_) | Trigger::CompositorMod | Trigger::Modifier(_)
+        )
+    }
 }
 
 impl Key {

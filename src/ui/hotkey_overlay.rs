@@ -308,10 +308,8 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
 
         // Only show binds with Mod or Super to filter out stuff like volume up/down.
         // Also filter out wheel and touchpad scroll binds.
-        if matches!(
-            bind.key.trigger,
-            Trigger::Keysym(_) | Trigger::Modifier(_) | Trigger::CompositorMod
-        ) && modifiers.intersects(Modifiers::COMPOSITOR | Modifiers::SUPER)
+        if bind.key.trigger.is_keyboard()
+            && modifiers.intersects(Modifiers::COMPOSITOR | Modifiers::SUPER)
         {
             bind_actions(bind)
                 .find(|action| matches!(action, Action::Spawn(_) | Action::SpawnSh(_)))
