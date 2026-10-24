@@ -265,11 +265,24 @@ where
 
         let mut seen_keys = HashSet::new();
 
-        let mut binds = Vec::new();
+        let mut binds: Vec<MruBind> = Vec::new();
 
         for child in node.children() {
             match MruBind::decode_node(child, ctx) {
                 Ok(bind) => {
+                    let conflict = binds
+                        .iter()
+                        .map(|bind| &bind.key)
+                        .any(|key| key.conflicts_with(&bind.key));
+                    if conflict {
+                        ctx.emit_error(DecodeError::unexpected(
+                            &child.node_name,
+                            "keybind",
+                            "conflicting keybind",
+                        ));
+                        continue;
+                    }
+
                     if !seen_keys.insert(bind.key) {
                         ctx.emit_error(DecodeError::unexpected(
                             &child.node_name,
