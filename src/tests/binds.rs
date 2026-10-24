@@ -883,7 +883,7 @@ fn press_and_release_binds() {
 fn generic_modifier_press_release() {
     let c = "
     binds {
-        Alt+Shift {
+        Super+Shift {
             press { close-window; }
             release { center-column; }
         }
@@ -894,43 +894,43 @@ fn generic_modifier_press_release() {
     }
     ";
 
-    // Press Alt and then two Shifts.
-    assert_snapshot!(run(c, "+LALT +LFSH +RTSH -RTSH -LFSH -LALT"), @"
-    +LALT  64 XK_Alt_L
-        surface key pressed: 56
-        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    // Press Super and then two Shifts.
+    assert_snapshot!(run(c, "+LWIN +LFSH +RTSH -RTSH -LFSH -LWIN"), @"
+    +LWIN 133 XK_Super_L
+        surface key pressed: 125
+        surface modifiers: depressed=64, latched=0, locked=0, group=0
     +LFSH  50 XK_Shift_L
         niri test-action
-        surface modifiers: depressed=9, latched=0, locked=0, group=0
+        surface modifiers: depressed=65, latched=0, locked=0, group=0
     +RTSH  62 XK_Shift_R
         niri test-action
     -RTSH  62 XK_Shift_R
         niri test-action
     -LFSH  50 XK_Shift_L
         niri test-action
-        surface modifiers: depressed=8, latched=0, locked=0, group=0
-    -LALT  64 XK_Alt_L
-        surface key released: 56
+        surface modifiers: depressed=64, latched=0, locked=0, group=0
+    -LWIN 133 XK_Super_L
+        surface key released: 125
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
 
     // Other release order.
-    assert_snapshot!(run(c, "+LALT +LFSH +RTSH -LFSH -RTSH -LALT"), @"
-    +LALT  64 XK_Alt_L
-        surface key pressed: 56
-        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    assert_snapshot!(run(c, "+LWIN +LFSH +RTSH -LFSH -RTSH -LWIN"), @"
+    +LWIN 133 XK_Super_L
+        surface key pressed: 125
+        surface modifiers: depressed=64, latched=0, locked=0, group=0
     +LFSH  50 XK_Shift_L
         niri test-action
-        surface modifiers: depressed=9, latched=0, locked=0, group=0
+        surface modifiers: depressed=65, latched=0, locked=0, group=0
     +RTSH  62 XK_Shift_R
         niri test-action
     -LFSH  50 XK_Shift_L
         niri test-action
     -RTSH  62 XK_Shift_R
         niri test-action
-        surface modifiers: depressed=8, latched=0, locked=0, group=0
-    -LALT  64 XK_Alt_L
-        surface key released: 56
+        surface modifiers: depressed=64, latched=0, locked=0, group=0
+    -LWIN 133 XK_Super_L
+        surface key released: 125
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
 
@@ -977,14 +977,14 @@ fn generic_modifier_press_release() {
     ");
 
     // Now, Shift first.
-    assert_snapshot!(run(c, "+LFSH +LALT -LALT -LFSH"), @"
+    assert_snapshot!(run(c, "+LFSH +LWIN -LWIN -LFSH"), @"
     +LFSH  50 XK_Shift_L
         surface key pressed: 42
         surface modifiers: depressed=1, latched=0, locked=0, group=0
-    +LALT  64 XK_Alt_L
+    +LWIN 133 XK_Super_L
         niri test-action
-        surface modifiers: depressed=9, latched=0, locked=0, group=0
-    -LALT  64 XK_Alt_L
+        surface modifiers: depressed=65, latched=0, locked=0, group=0
+    -LWIN 133 XK_Super_L
         niri test-action
         surface modifiers: depressed=1, latched=0, locked=0, group=0
     -LFSH  50 XK_Shift_L
@@ -992,19 +992,19 @@ fn generic_modifier_press_release() {
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
 
-    // Two Alts.
-    assert_snapshot!(run(c, "+LFSH +LALT +RALT -RALT -LALT -LFSH"), @"
+    // Two Supers.
+    assert_snapshot!(run(c, "+LFSH +LWIN +RWIN -RWIN -LWIN -LFSH"), @"
     +LFSH  50 XK_Shift_L
         surface key pressed: 42
         surface modifiers: depressed=1, latched=0, locked=0, group=0
-    +LALT  64 XK_Alt_L
+    +LWIN 133 XK_Super_L
         niri test-action
-        surface modifiers: depressed=9, latched=0, locked=0, group=0
-    +RALT 108 XK_Alt_R
+        surface modifiers: depressed=65, latched=0, locked=0, group=0
+    +RWIN 134 XK_Super_R
         niri test-action
-    -RALT 108 XK_Alt_R
+    -RWIN 134 XK_Super_R
         niri test-action
-    -LALT  64 XK_Alt_L
+    -LWIN 133 XK_Super_L
         niri test-action
         surface modifiers: depressed=1, latched=0, locked=0, group=0
     -LFSH  50 XK_Shift_L
@@ -1013,24 +1013,24 @@ fn generic_modifier_press_release() {
     ");
 
     // Unrelated modifier in the middle.
-    assert_snapshot!(run(c, "+LALT +LWIN +LFSH -LWIN -LFSH -LALT"), @"
-    +LALT  64 XK_Alt_L
-        surface key pressed: 56
-        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    assert_snapshot!(run(c, "+LWIN +LCTL +LFSH -LCTL -LFSH -LWIN"), @"
     +LWIN 133 XK_Super_L
         surface key pressed: 125
-        surface modifiers: depressed=72, latched=0, locked=0, group=0
+        surface modifiers: depressed=64, latched=0, locked=0, group=0
+    +LCTL  37 XK_Control_L
+        surface key pressed: 29
+        surface modifiers: depressed=68, latched=0, locked=0, group=0
     +LFSH  50 XK_Shift_L
         surface key pressed: 42
-        surface modifiers: depressed=73, latched=0, locked=0, group=0
-    -LWIN 133 XK_Super_L
-        surface key released: 125
-        surface modifiers: depressed=9, latched=0, locked=0, group=0
+        surface modifiers: depressed=69, latched=0, locked=0, group=0
+    -LCTL  37 XK_Control_L
+        surface key released: 29
+        surface modifiers: depressed=65, latched=0, locked=0, group=0
     -LFSH  50 XK_Shift_L
         surface key released: 42
-        surface modifiers: depressed=8, latched=0, locked=0, group=0
-    -LALT  64 XK_Alt_L
-        surface key released: 56
+        surface modifiers: depressed=64, latched=0, locked=0, group=0
+    -LWIN 133 XK_Super_L
+        surface key released: 125
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
 
