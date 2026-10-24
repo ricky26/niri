@@ -1662,7 +1662,7 @@ fn mru_close_forwards_key_release_without_bind() {
     +TAB  23 XK_Tab
         surface leave
     -LALT  64 XK_Alt_L
-        surface enter: [56, 0, 0, 0]
+        surface enter: [56]
         surface modifiers: depressed=0, latched=0, locked=0, group=0
         surface key released: 56
         surface modifiers: depressed=0, latched=0, locked=0, group=0

@@ -119,7 +119,7 @@ pub struct Keyboard {
 #[derive(Debug)]
 pub enum KeyboardEvent {
     Enter {
-        keys: Vec<u8>,
+        keys: Vec<u32>,
     },
     Leave,
     Key {
@@ -756,6 +756,10 @@ impl Dispatch<WlKeyboard, WlSeat> for State {
             wl_keyboard::Event::Keymap { .. } => (),
             wl_keyboard::Event::Enter { surface, keys, .. } => {
                 keyboard.surface = Some(surface.clone());
+
+                // The order is arbitrary, but we need a fixed order for our tests.
+                let mut keys: Vec<u32> = bytemuck::pod_collect_to_vec(&keys);
+                keys.sort_unstable();
 
                 let event = KeyboardEvent::Enter { keys };
                 let surface = state.surfaces.get_mut(&surface).unwrap();
