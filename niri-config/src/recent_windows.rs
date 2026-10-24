@@ -319,8 +319,11 @@ where
             .parse::<Key>()
             .map_err(|e| DecodeError::conversion(&node.node_name, e.wrap_err("invalid keybind")))?;
 
+        let mut modifiers = key.modifiers;
+        modifiers &= !key.trigger.implied_modifier();
+
         // A modifier is required because MRU remains on screen as long as any modifier is held.
-        if key.modifiers.is_empty() {
+        if modifiers.is_empty() {
             ctx.emit_error(DecodeError::unexpected(
                 &node.node_name,
                 "keybind",
@@ -330,7 +333,7 @@ where
 
         // FIXME: To support this, all the mods_with_mouse_binds()/mods_with_*wheel_binds()/etc.
         // will need to learn about recent-windows bindings.
-        if !matches!(key.trigger, Trigger::Keysym(_)) {
+        if !key.trigger.is_keyboard() {
             ctx.emit_error(DecodeError::unexpected(
                 &node.node_name,
                 "key",

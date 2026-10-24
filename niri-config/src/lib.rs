@@ -979,13 +979,25 @@ mod tests {
             r#"
             recent-windows {
                 binds {
-                    Alt_L { next-window; }
+                    Ctrl+Alt_L { next-window; }
+                    Ctrl+Shift { next-window; }
                 }
             }
             "#,
         );
-        // Redundant modifiers are allowed.
-        do_parse(
+
+        // Binds must have an extra modifier.
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Alt_L { next-window; }
+                }
+            }
+            "#,
+            "keybind must have a modifier key",
+        );
+        assert_parse_error(
             r#"
             recent-windows {
                 binds {
@@ -993,9 +1005,10 @@ mod tests {
                 }
             }
             "#,
+            "keybind must have a modifier key",
         );
 
-        // A trigger with no modifier at all is still rejected.
+        // A trigger with no modifier at all is rejected.
         assert_parse_error(
             r#"
             recent-windows {
@@ -1007,12 +1020,12 @@ mod tests {
             "keybind must have a modifier key",
         );
 
-        // Only keyboard keys are supported here for now, so a bare modifier trigger is rejected.
+        // Only keyboard keys are supported here for now.
         assert_parse_error(
             r#"
             recent-windows {
                 binds {
-                    Mod { next-window; }
+                    Alt+MouseLeft { next-window; }
                 }
             }
             "#,
