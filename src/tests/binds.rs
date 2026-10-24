@@ -929,6 +929,64 @@ fn generic_modifier_press_release() {
         surface key released: 56
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
+
+    // Now, Shift first.
+    assert_snapshot!(run(c, "+LFSH +LALT -LALT -LFSH"), @"
+    +LFSH  50 XK_Shift_L
+        surface key pressed: 42
+        surface modifiers: depressed=1, latched=0, locked=0, group=0
+    +LALT  64 XK_Alt_L
+        surface key pressed: 56
+        surface modifiers: depressed=9, latched=0, locked=0, group=0
+    -LALT  64 XK_Alt_L
+        surface key released: 56
+        surface modifiers: depressed=1, latched=0, locked=0, group=0
+    -LFSH  50 XK_Shift_L
+        surface key released: 42
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
+
+    // Two Alts.
+    assert_snapshot!(run(c, "+LFSH +LALT +RALT -RALT -LALT -LFSH"), @"
+    +LFSH  50 XK_Shift_L
+        surface key pressed: 42
+        surface modifiers: depressed=1, latched=0, locked=0, group=0
+    +LALT  64 XK_Alt_L
+        surface key pressed: 56
+        surface modifiers: depressed=9, latched=0, locked=0, group=0
+    +RALT 108 XK_Alt_R
+        surface key pressed: 100
+    -RALT 108 XK_Alt_R
+        surface key released: 100
+    -LALT  64 XK_Alt_L
+        surface key released: 56
+        surface modifiers: depressed=1, latched=0, locked=0, group=0
+    -LFSH  50 XK_Shift_L
+        surface key released: 42
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
+
+    // Unrelated modifier in the middle.
+    assert_snapshot!(run(c, "+LALT +LWIN +LFSH -LWIN -LFSH -LALT"), @"
+    +LALT  64 XK_Alt_L
+        surface key pressed: 56
+        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    +LWIN 133 XK_Super_L
+        surface key pressed: 125
+        surface modifiers: depressed=72, latched=0, locked=0, group=0
+    +LFSH  50 XK_Shift_L
+        surface key pressed: 42
+        surface modifiers: depressed=73, latched=0, locked=0, group=0
+    -LWIN 133 XK_Super_L
+        surface key released: 125
+        surface modifiers: depressed=9, latched=0, locked=0, group=0
+    -LFSH  50 XK_Shift_L
+        surface key released: 42
+        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    -LALT  64 XK_Alt_L
+        surface key released: 56
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
 }
 
 #[test]
