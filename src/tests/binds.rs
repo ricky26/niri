@@ -880,6 +880,58 @@ fn press_and_release_binds() {
 }
 
 #[test]
+fn generic_modifier_press_release() {
+    let c = "
+    binds {
+        Alt+Shift {
+            press { close-window; }
+            release { center-column; }
+        }
+    }
+    ";
+
+    // Press Alt and then two Shifts.
+    assert_snapshot!(run(c, "+LALT +LFSH +RTSH -RTSH -LFSH -LALT"), @"
+    +LALT  64 XK_Alt_L
+        surface key pressed: 56
+        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    +LFSH  50 XK_Shift_L
+        niri test-action
+        surface modifiers: depressed=9, latched=0, locked=0, group=0
+    +RTSH  62 XK_Shift_R
+        niri test-action
+    -RTSH  62 XK_Shift_R
+        niri test-action
+    -LFSH  50 XK_Shift_L
+        niri test-action
+        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    -LALT  64 XK_Alt_L
+        surface key released: 56
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
+
+    // Other release order.
+    assert_snapshot!(run(c, "+LALT +LFSH +RTSH -LFSH -RTSH -LALT"), @"
+    +LALT  64 XK_Alt_L
+        surface key pressed: 56
+        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    +LFSH  50 XK_Shift_L
+        niri test-action
+        surface modifiers: depressed=9, latched=0, locked=0, group=0
+    +RTSH  62 XK_Shift_R
+        niri test-action
+    -LFSH  50 XK_Shift_L
+        niri test-action
+    -RTSH  62 XK_Shift_R
+        niri test-action
+        surface modifiers: depressed=8, latched=0, locked=0, group=0
+    -LALT  64 XK_Alt_L
+        surface key released: 56
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
+}
+
+#[test]
 fn mod_key_press_and_release_bind() {
     let c = "
     binds {
