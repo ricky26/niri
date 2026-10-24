@@ -59,8 +59,9 @@ impl MergeWith<RecentWindowsPart> for RecentWindows {
 
         if let Some(part) = &part.binds {
             // Remove existing binds matching any new bind.
+            let matches = |a: &MruBind, b: &Bind| a.key == b.key || a.key.conflicts_with(&b.key);
             self.binds
-                .retain(|bind| !part.0.iter().any(|new| new.key == bind.key));
+                .retain(|bind| !part.0.iter().any(|new| matches(new, bind)));
             // Add all new binds.
             self.binds.extend(part.0.iter().cloned().map(Bind::from));
         }

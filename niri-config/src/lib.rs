@@ -229,7 +229,9 @@ where
                     let mut config = config.borrow_mut();
                     let binds = &mut config.binds.0;
                     // Remove existing binds matching any new bind.
-                    binds.retain(|bind| !part.0.iter().any(|new| new.key == bind.key));
+                    let matches =
+                        |a: &Bind, b: &Bind| a.key == b.key || a.key.conflicts_with(&b.key);
+                    binds.retain(|bind| !part.0.iter().any(|new| matches(new, bind)));
                     // Add all new binds.
                     binds.extend(part.0);
                 }

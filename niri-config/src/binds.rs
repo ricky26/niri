@@ -154,7 +154,7 @@ impl Trigger {
 
 impl Key {
     /// Whether the two keys are different, but can still be triggered by the same key press.
-    fn conflicts_with(&self, other: &Self) -> bool {
+    pub fn conflicts_with(&self, other: &Self) -> bool {
         // All non-modifier triggers will always be exact matches rather than conflicts.
         if *self == *other {
             return false;
