@@ -887,6 +887,10 @@ fn generic_modifier_press_release() {
             press { close-window; }
             release { center-column; }
         }
+
+        Ctrl+Shift {
+            release { close-window; }
+        }
     }
     ";
 
@@ -927,6 +931,48 @@ fn generic_modifier_press_release() {
         surface modifiers: depressed=8, latched=0, locked=0, group=0
     -LALT  64 XK_Alt_L
         surface key released: 56
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
+
+    // Same but release-only.
+    assert_snapshot!(run(c, "+LCTL +LFSH +RTSH -RTSH -LFSH -LCTL"), @"
+    +LCTL  37 XK_Control_L
+        surface key pressed: 29
+        surface modifiers: depressed=4, latched=0, locked=0, group=0
+    +LFSH  50 XK_Shift_L
+        surface key pressed: 42
+        surface modifiers: depressed=5, latched=0, locked=0, group=0
+    +RTSH  62 XK_Shift_R
+        surface key pressed: 54
+    -RTSH  62 XK_Shift_R
+        niri test-action
+        surface key released: 54
+    -LFSH  50 XK_Shift_L
+        surface key released: 42
+        surface modifiers: depressed=4, latched=0, locked=0, group=0
+    -LCTL  37 XK_Control_L
+        surface key released: 29
+        surface modifiers: depressed=0, latched=0, locked=0, group=0
+    ");
+
+    // Other release order (release-only).
+    assert_snapshot!(run(c, "+LCTL +LFSH +RTSH -LFSH -RTSH -LCTL"), @"
+    +LCTL  37 XK_Control_L
+        surface key pressed: 29
+        surface modifiers: depressed=4, latched=0, locked=0, group=0
+    +LFSH  50 XK_Shift_L
+        surface key pressed: 42
+        surface modifiers: depressed=5, latched=0, locked=0, group=0
+    +RTSH  62 XK_Shift_R
+        surface key pressed: 54
+    -LFSH  50 XK_Shift_L
+        surface key released: 42
+    -RTSH  62 XK_Shift_R
+        niri test-action
+        surface key released: 54
+        surface modifiers: depressed=4, latched=0, locked=0, group=0
+    -LCTL  37 XK_Control_L
+        surface key released: 29
         surface modifiers: depressed=0, latched=0, locked=0, group=0
     ");
 
